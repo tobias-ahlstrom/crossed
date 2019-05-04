@@ -1,6 +1,10 @@
 source("functions.R")
 
-test <- create_crosswordmatrix(12, 9)
+test <- create_crosswordmatrix(12, 9, clues_factor = 5)
+
+index_matrix <- matrix(seq(1, 12*9), nrow = 12, ncol = 9)
+index_matrix
+
 
 get_edge_indices(test, "up")
 get_edge_indices(test, "right")
@@ -27,6 +31,10 @@ is_valid_index(test, index = 26, rule = 3)
 is_valid_index(test, index = 37, rule = 3)
 is_valid_index(test, index = 12, rule = 3)
 is_valid_index(test, index = 108, rule = 3)
+
+is_valid_index(test, index = 38, rule = 1)
+is_valid_index(test, index = 38, rule = 3, force = "solution")
+is_valid_index(test, index = 38, rule = 4)
 
 get_indices_directional_of_index(test, 27, "up")
 get_indices_directional_of_index(test, 27, "right")
