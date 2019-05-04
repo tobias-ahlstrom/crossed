@@ -56,14 +56,28 @@ adjust_matrix(crossword_matrix, 1)
 adjust_matrix(crossword_matrix, 2)
 adjust_matrix(crossword_matrix, 3)
 
-
-game_suggest_solution(crossword_matrix, game_matrix, 1)
-game_suggest_solution(crossword_matrix, game_matrix, 40)
+game_suggest_solution(crossword_matrix, game_matrix, 1, sample_size = 5)
+game_suggest_solution(crossword_matrix, game_matrix, 40, sample_size = 5)
 
 
 game_insert_solution(crossword_matrix, game_matrix, 1, "cia") %>% 
   game_insert_solution(crossword_matrix, ., 40, "knackar") %>% 
   game_insert_solution(crossword_matrix, ., 17, "ektorp") %>% 
-  game_suggest_solution(crossword_matrix, ., 6)
+  game_suggest_solution(crossword_matrix, ., 6, sample_size = 5)
+
+game_insert_solution(crossword_matrix, game_matrix, 1, "cia") %>% 
+  game_insert_solution(crossword_matrix, ., 40, "knackar") %>% 
+  game_insert_solution(crossword_matrix, ., 17, "ektorp") %>% 
+  get_solution(crossword_matrix, ., 40)
+
+game_insert_solution(crossword_matrix, game_matrix, 1, "cia") %>% 
+  game_insert_solution(crossword_matrix, ., 40, "knackar") %>% 
+  game_insert_solution(crossword_matrix, ., 17, "ektorp") %>% 
+  is_finished_clue(crossword_matrix, ., c(17, 40, 2))
   
+
+get_clue_indices(crossword_matrix, 13)
+get_clue_indices(crossword_matrix, 29)
+get_clue_indices(crossword_matrix, c(29, 41, 53, 65, 77, 89))
+
 

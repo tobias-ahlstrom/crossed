@@ -103,7 +103,7 @@ create_game_matrix <- function(crossword_matrix) {
 }
 
 
-
+# Rewrite to call the get function and return length of that
 count_adjacent <- function(crossword_matrix, index, look_for, direction) {
   step <- case_when(
     direction == "up" ~ as.integer(-1),
@@ -488,32 +488,120 @@ is_valid_index <- function(crossword_matrix, index, rule, force = NULL) {
 }
 
 
-# Must also consider that unfinished solutions will be possible to complete
-game_suggest_solution <- function(crossword_matrix, game_matrix, index) {
+# Give an index as .omit_clue to not check validity with that clue
+game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_size = NULL, .omit_clue = NULL) {
   
   if (crossword_matrix[index] == 0) {
     stop(paste("Index", index, "is not a clue"))
   }
   
-  solution_length <- count_adjacent(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  # Get current solution and subset dictionary with what fits based on that
+  current_solution <- get_solution(crossword_matrix, game_matrix, index)
   
-  solution_indices <- get_adjacent_indices(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
-  
-  current_solution <- game_matrix[solution_indices] %>% 
-    str_c(collapse = "")
+  if (is_finished_clue(crossword_matrix, game_matrix, index)) {
+    return(current_solution)
+  }
   
   dictionary_subset <- dictionary %>% 
-    filter(str_length(word) == solution_length,
-           str_detect(str_to_lower(word, locale = "sv"), current_solution))
+    filter(str_length(word) == str_length(current_solution),
+           str_detect(str_to_lower(word, locale = "sv"), current_solution)) %>% 
+    pull(word)
   
-  suggestions <- sample(dictionary_subset$word, 5)
+  dictionary_subset <- sample(dictionary_subset, min(max(sample_size, 10), length(dictionary_subset)))
   
+  if (length(dictionary_subset) == 0) {
+    cat("No suggestions\n")
+    return(NULL)
+  }
+  
+  # Consider that unfinished solutions connected to the suggestion will be able to complete
+  solution_indices <- get_solution_indices(crossword_matrix, index)
+  
+  connected_clues_indices <- get_clue_indices(crossword_matrix, solution_indices)
+  
+  # Only consider vertical clues if horizontal suggestion and vice versa
+  if (crossword_matrix[index] == 1) {
+    connected_clues_indices_unfinished <- connected_clues_indices[,3] %>% 
+      as.vector() %>% 
+      na.omit() %>% 
+      .[!is_finished_clue(crossword_matrix, game_matrix, .)]
+    
+    # not_check_positions <- which(!(connected_clues_indices[,3] %in% connected_clues_indices_unfinished) & !is.na(connected_clues_indices[,3]))
+    
+  } else {
+    connected_clues_indices_unfinished <- connected_clues_indices[,2] %>% 
+      as.vector() %>% 
+      na.omit() %>% 
+      .[!is_finished_clue(crossword_matrix, game_matrix, .)]
+    
+    # not_check_positions <- which(!(connected_clues_indices[,2] %in% connected_clues_indices_unfinished) & !is.na(connected_clues_indices[,2]))
+    
+  }
+  
+  if (!is.null(.omit_clue)) {
+    # connected_clues_indices_unfinished <- connected_clues_indices_unfinished[connected_clues_indices_unfinished != .omit_clue]
+    connected_clues_indices_unfinished <- NULL
+  }
+  
+  # Which positions in the word does not need to be checked
+  
+  # dictionary_subset_temp <- dictionary_subset %>% 
+  #   str_split(pattern = "", simplify = TRUE)
+  
+  # dictionary_subset_temp[, not_check_positions] <- "."
+  
+  # dictionary_subset_temp <- apply(dictionary_subset_temp, 1, str_c, collapse = "") %>% 
+  #   unique()
+  
+  dictionary_subset_possible <- c()
+  nr_clues_to_satisfy <- length(connected_clues_indices_unfinished)
+  
+  for (candidate_suggestion in dictionary_subset) {
+    
+    cat("Cur index:", index, "\n")
+    cat("Cur suggestion:", candidate_suggestion, "\n")
+    
+    if (nr_clues_to_satisfy == 0) {
+      cat("\n")
+      break()
+    }
+    
+    game_matrix_temp <- game_insert_solution(crossword_matrix, game_matrix, index, candidate_suggestion, force = TRUE)
+    
+    n_satisfied <- 0
+    
+    for (unfinished_clue in connected_clues_indices_unfinished) {
+      cat("Investigate clue:", unfinished_clue, "\n")
+      if (length(game_suggest_solution(crossword_matrix, game_matrix_temp, unfinished_clue, 1, .omit_clue = index)) > 0) {
+        cat("Satisfied clue:", unfinished_clue, "\n")
+        n_satisfied <- n_satisfied + 1
+      } else {
+        cat("Did not satisfy clue:", unfinished_clue, "\n")
+        break()
+      }
+    }
+    
+    cat("\n")
+    
+    if (n_satisfied == nr_clues_to_satisfy) {
+      dictionary_subset_possible <- c(dictionary_subset_possible, candidate_suggestion)
+    }
+  }
+  
+  
+  
+  if (!is.null(sample_size)) {
+    suggestions <- sample(dictionary_subset, min(sample_size, length(dictionary_subset)))
+  } else {
+    suggestions <- dictionary_subset
+  }
+
   return(suggestions)
 }
 
 
 
-game_insert_solution <- function(crossword_matrix, game_matrix, index, solution) {
+game_insert_solution <- function(crossword_matrix, game_matrix, index, solution, force = FALSE) {
   
   solution_candidate <- str_to_lower(solution, locale = "sv")
   
@@ -521,18 +609,15 @@ game_insert_solution <- function(crossword_matrix, game_matrix, index, solution)
     stop(paste("Index", index, "is not a clue"))
   }
   
-  solution_length <- count_adjacent(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  solution_indices <- get_solution_indices(crossword_matrix, index)
   
-  if (str_length(solution_candidate) != solution_length) {
+  if (str_length(solution_candidate) != length(solution_indices)) {
     stop("Incorrect solution length")
   }
   
-  solution_indices <- get_adjacent_indices(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  current_solution <- get_solution(crossword_matrix, game_matrix, index)
   
-  current_solution <- game_matrix[solution_indices] %>% 
-    str_c(collapse = "")
-  
-  if (!str_detect(solution_candidate, current_solution)) {
+  if (!str_detect(solution_candidate, current_solution) & !force) {
     stop("Solution does not fit")
   }
   
@@ -547,3 +632,132 @@ game_insert_solution <- function(crossword_matrix, game_matrix, index, solution)
 
 
 
+is_finished_clue <- function(crossword_matrix, game_matrix, indices){
+  
+  if (any(crossword_matrix[indices] == 0)) {
+    stop("All indices are not clues")
+  }
+  
+  is_finished_clue_vector <- c()
+  
+  for (i in indices) {
+    solution <- get_solution(crossword_matrix, game_matrix, i)
+    
+    if (str_count(solution, "\\.") == 0) {
+      is_finished_clue_vector <- c(is_finished_clue_vector, TRUE)
+    } else {
+      is_finished_clue_vector <- c(is_finished_clue_vector, FALSE)
+    }
+  }
+  
+  return(is_finished_clue_vector)
+}
+
+
+
+get_solution <- function(crossword_matrix, game_matrix, index) {
+  
+  if (crossword_matrix[index] == 0) {
+    stop(paste("Index", index, "is not a clue"))
+  }
+  
+  solution_indices <- get_solution_indices(crossword_matrix, index)
+  
+  current_solution <- game_matrix[solution_indices] %>% 
+    str_c(collapse = "")
+  
+  return(current_solution)
+  
+}
+
+
+
+get_solution_indices <- function(crossword_matrix, index) {
+  
+  if (crossword_matrix[index] == 0) {
+    stop(paste("Index", index, "is not a clue"))
+  }
+  
+  solution_indices <- get_adjacent_indices(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  
+  return(solution_indices)
+  
+}
+
+
+get_clue_indices <- function(crossword_matrix, indices) {
+  
+  clue_indices <- matrix(nrow = length(indices), ncol = 3, byrow = TRUE, dimnames = list(seq_along(indices), c("solution_index", "left_clue_index", "up_clue_index")))
+  
+  if (any(crossword_matrix[indices] != 0)) {
+    stop("All indices are not solutions")
+  }
+  
+  row <- 1
+  
+  # Loop through all indices
+  for (i in indices) {
+    
+    clue_indices[row, 1] <- i
+    
+    # Look left
+    suppressWarnings(
+      {
+        leftmost_solution_index <- get_adjacent_indices(crossword_matrix, i, "solution", "left") %>% 
+          min()
+      }
+    )
+    
+    if (is.infinite(leftmost_solution_index)) {
+      index_to_check <- i
+    } else {
+      index_to_check <- leftmost_solution_index
+    }
+    
+    if (index_to_check %in% get_edge_indices(crossword_matrix, "left")) {
+      
+      clue_indices[row, 2] <- NA
+      
+    } else if (crossword_matrix[index_to_check - nrow(crossword_matrix)] == -1) {
+      
+      clue_indices[row, 2] <- NA
+      
+    } else {
+      
+      clue_indices[row, 2] <- index_to_check - nrow(crossword_matrix)
+      
+    }
+    
+    # Look up
+    suppressWarnings(
+      {
+        upmost_solution_index <- get_adjacent_indices(crossword_matrix, i, "solution", "up") %>% 
+          min()
+      }
+    )
+    
+    if (is.infinite(upmost_solution_index)) {
+      index_to_check <- i
+    } else {
+      index_to_check <- upmost_solution_index
+    }
+    
+    if (index_to_check %in% get_edge_indices(crossword_matrix, "up")) {
+      
+      clue_indices[row, 3] <- NA
+      
+    } else if (crossword_matrix[index_to_check - 1] == 1) {
+      
+      clue_indices[row, 3] <- NA
+      
+    } else {
+      
+      clue_indices[row, 3] <- index_to_check - 1
+      
+    }
+    
+    row <- row + 1
+  }
+  
+  return(clue_indices)
+}

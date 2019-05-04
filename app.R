@@ -2,7 +2,6 @@ library(shiny)
 library(tidyverse)
 
 # Needed functions
-# get_solution_indices(clue_index)
 # get_clue_indices(solution_indices)
 # is_clue(index)
 # is_solution(index)
