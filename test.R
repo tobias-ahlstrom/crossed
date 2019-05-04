@@ -1,56 +1,69 @@
 source("functions.R")
 
-test <- create_crosswordmatrix(12, 9, clues_factor = 5)
+# dictionary <- read_tsv("http://runeberg.org/words/ss100.txt", col_names = "word", col_types = "c")
+# 
+# Encoding(dictionary$word) <- "windows-1252"
+# 
+# dictionary %>% write_rds("dictionary.rds")
+
+# Let dictionary be a global variable for now
+dictionary <-  read_rds("dictionary.rds")
+
+crossword_matrix <- create_crossword_matrix(12, 9, clues_factor = 5)
+
+game_matrix <- create_game_matrix(crossword_matrix)
 
 index_matrix <- matrix(seq(1, 12*9), nrow = 12, ncol = 9)
-index_matrix
 
 
-get_edge_indices(test, "up")
-get_edge_indices(test, "right")
-get_edge_indices(test, "down")
-get_edge_indices(test, "left")
+get_edge_indices(crossword_matrix, "up")
+get_edge_indices(crossword_matrix, "right")
+get_edge_indices(crossword_matrix, "down")
+get_edge_indices(crossword_matrix, "left")
+
+get_boundaries_of_index(crossword_matrix, 17)
+
+is_connected_indices(crossword_matrix, 14, 17, "down")
+is_connected_indices(crossword_matrix, 14, 17, "right")
+is_connected_indices(crossword_matrix, 12, 108, "right")
+is_connected_indices(crossword_matrix, 12, 107, "right")
+
+count_adjacent(crossword_matrix, 15, "clue", "right")
+count_adjacent(crossword_matrix, 29, "solution", "down")
+count_adjacent(crossword_matrix, 61, "solution", "up")
+count_adjacent(crossword_matrix, 100, "clue", "right")
+
+is_valid_index(crossword_matrix, index = 27, rule = 1)
+is_valid_index(crossword_matrix, index = 33, rule = 1)
+
+is_valid_index(crossword_matrix, index = 26, rule = 3)
+is_valid_index(crossword_matrix, index = 37, rule = 3)
+is_valid_index(crossword_matrix, index = 12, rule = 3)
+is_valid_index(crossword_matrix, index = 108, rule = 3)
+
+is_valid_index(crossword_matrix, index = 38, rule = 1)
+is_valid_index(crossword_matrix, index = 38, rule = 3, force = "solution")
+is_valid_index(crossword_matrix, index = 38, rule = 4)
+
+get_indices_directional_of_index(crossword_matrix, 27, "up")
+get_indices_directional_of_index(crossword_matrix, 27, "right")
+get_indices_directional_of_index(crossword_matrix, 27, "down")
+get_indices_directional_of_index(crossword_matrix, 27, "left")
+
+get_adjacent_indices(crossword_matrix, 1, "solution", "right")
+
+adjust_matrix(crossword_matrix, 1)
+adjust_matrix(crossword_matrix, 2)
+adjust_matrix(crossword_matrix, 3)
 
 
-get_boundaries_of_index(test, 17)
+game_suggest_solution(crossword_matrix, game_matrix, 1)
+game_suggest_solution(crossword_matrix, game_matrix, 40)
 
-is_connected_indices(test, 14, 17, "down")
-is_connected_indices(test, 14, 17, "right")
-is_connected_indices(test, 12, 108, "right")
-is_connected_indices(test, 12, 107, "right")
 
-count_adjacent(test, 15, "clue", "right")
-count_adjacent(test, 29, "solution", "down")
-count_adjacent(test, 61, "solution", "up")
-count_adjacent(test, 100, "clue", "right")
+game_insert_solution(crossword_matrix, game_matrix, 1, "cia") %>% 
+  game_insert_solution(crossword_matrix, ., 40, "knackar") %>% 
+  game_insert_solution(crossword_matrix, ., 17, "ektorp") %>% 
+  game_suggest_solution(crossword_matrix, ., 6)
+  
 
-is_valid_index(test, index = 27, rule = 1)
-is_valid_index(test, index = 33, rule = 1)
-
-is_valid_index(test, index = 26, rule = 3)
-is_valid_index(test, index = 37, rule = 3)
-is_valid_index(test, index = 12, rule = 3)
-is_valid_index(test, index = 108, rule = 3)
-
-is_valid_index(test, index = 38, rule = 1)
-is_valid_index(test, index = 38, rule = 3, force = "solution")
-is_valid_index(test, index = 38, rule = 4)
-
-get_indices_directional_of_index(test, 27, "up")
-get_indices_directional_of_index(test, 27, "right")
-get_indices_directional_of_index(test, 27, "down")
-get_indices_directional_of_index(test, 27, "left")
-
-for (i in seq(1, length(test))) {
-  print(i)
-  print(is_valid_index(test, index = i, rule = 1))
-}
-
-for (i in seq(1, length(test))) {
-  print(i)
-  print(is_valid_index(test, index = i, rule = 2))
-}
-
-adjust_matrix(test, 1)
-adjust_matrix(test, 2)
-adjust_matrix(test, 3)

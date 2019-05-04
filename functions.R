@@ -1,4 +1,4 @@
-create_crosswordmatrix <- function(rows, cols, clues_factor = NULL) {
+create_crossword_matrix <- function(rows, cols, clues_factor = NULL) {
   
   if (is.null(clues_factor)) {
     clues_factor <- 3
@@ -88,13 +88,19 @@ create_crosswordmatrix <- function(rows, cols, clues_factor = NULL) {
   return(crossword_matrix)
 }
 
-# Needed functions
-# get_solution_indices(clue_index)
-# is_clue(index)
-# is_solution(index)
 
-# get_col_of_index(index) and simlar for get row, and rewrite/simplify many other functions depending on rows/cols numbers
-# rewrite everything using regular subsetting of matrices
+
+create_game_matrix <- function(crossword_matrix) {
+  game_matrix <- matrix(".", nrow = nrow(crossword_matrix), ncol = ncol(crossword_matrix))
+  
+  clues_right_indices <- which(crossword_matrix == 1)
+  clues_down_indices <- which(crossword_matrix == -1)
+  
+  game_matrix[clues_right_indices] <- "c_r"
+  game_matrix[clues_down_indices] <- "c_d"
+  
+  return(game_matrix)
+}
 
 
 
@@ -127,6 +133,39 @@ count_adjacent <- function(crossword_matrix, index, look_for, direction) {
   }
   
   return(count)
+}
+
+
+
+get_adjacent_indices <- function(crossword_matrix, index, look_for, direction) {
+  step <- case_when(
+    direction == "up" ~ as.integer(-1),
+    direction == "right" ~ nrow(crossword_matrix),
+    direction == "down" ~ as.integer(1),
+    direction == "left" ~ -nrow(crossword_matrix)
+  )
+  
+  if (look_for == "clue") {
+    look_for_value <- c(1, -1)
+  } else if (look_for == "solution") {
+    look_for_value <- 0
+  }
+  
+  next_index = index + step
+  pre_index = index
+  indices <- c()
+  
+  while (next_index <= length(crossword_matrix) & next_index > 0 & is_connected_indices(crossword_matrix, pre_index, next_index, direction)) {
+    if (crossword_matrix[next_index] %in% look_for_value) {
+      indices <- c(indices, next_index)
+      pre_index <- next_index
+      next_index <- next_index + step
+    } else {
+      break()
+    }
+  }
+  
+  return(indices)
 }
 
 
@@ -272,7 +311,10 @@ adjust_matrix <- function(crossword_matrix, rule) {
   
   if (rule == 1) {
     
-    for (i in seq(2, length(crossword_matrix))) {
+    set.seed(102)
+    indices <- sample(seq(2, length(crossword_matrix)), size = (length(crossword_matrix) - 1), replace = FALSE)
+    
+    for (i in indices) {
       
       if (!is_valid_index(crossword_matrix, i, 1)) {
         crossword_matrix[i] <- 0
@@ -282,7 +324,10 @@ adjust_matrix <- function(crossword_matrix, rule) {
     
   } else if (rule == 2) {
     
-    for (i in seq(1, length(crossword_matrix))) {
+    set.seed(103)
+    indices <- sample(seq(1, length(crossword_matrix)), size = length(crossword_matrix), replace = FALSE)
+    
+    for (i in indices) {
       
       if (!is_valid_index(crossword_matrix, i, 2)) {
         crossword_matrix[i] <- crossword_matrix[i] * -1
@@ -295,7 +340,10 @@ adjust_matrix <- function(crossword_matrix, rule) {
     
   } else if (rule == 3) {
     
-    for (i in seq(2, length(crossword_matrix))) {
+    set.seed(104)
+    indices <- sample(seq(2, length(crossword_matrix)), size = (length(crossword_matrix) - 1), replace = FALSE)
+    
+    for (i in indices) {
       
       if (!is_valid_index(crossword_matrix, i, 3)) {
         if (count_adjacent(crossword_matrix, i, "solution", "right") > count_adjacent(crossword_matrix, i, "solution", "down")) {
@@ -309,7 +357,10 @@ adjust_matrix <- function(crossword_matrix, rule) {
     }
   } else if (rule == 4) {
     
-    for (i in seq(1, length(crossword_matrix))) {
+    set.seed(105)
+    indices <- sample(seq(1, length(crossword_matrix)), size = length(crossword_matrix), replace = FALSE)
+    
+    for (i in indices) {
       
       if (!is_valid_index(crossword_matrix, i, 4)) {
         
@@ -435,4 +486,64 @@ is_valid_index <- function(crossword_matrix, index, rule, force = NULL) {
     
   }
 }
+
+
+# Must also consider that unfinished solutions will be possible to complete
+game_suggest_solution <- function(crossword_matrix, game_matrix, index) {
+  
+  if (crossword_matrix[index] == 0) {
+    stop(paste("Index", index, "is not a clue"))
+  }
+  
+  solution_length <- count_adjacent(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  
+  solution_indices <- get_adjacent_indices(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  
+  current_solution <- game_matrix[solution_indices] %>% 
+    str_c(collapse = "")
+  
+  dictionary_subset <- dictionary %>% 
+    filter(str_length(word) == solution_length,
+           str_detect(str_to_lower(word, locale = "sv"), current_solution))
+  
+  suggestions <- sample(dictionary_subset$word, 5)
+  
+  return(suggestions)
+}
+
+
+
+game_insert_solution <- function(crossword_matrix, game_matrix, index, solution) {
+  
+  solution_candidate <- str_to_lower(solution, locale = "sv")
+  
+  if (crossword_matrix[index] == 0) {
+    stop(paste("Index", index, "is not a clue"))
+  }
+  
+  solution_length <- count_adjacent(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  
+  if (str_length(solution_candidate) != solution_length) {
+    stop("Incorrect solution length")
+  }
+  
+  solution_indices <- get_adjacent_indices(crossword_matrix, index, look_for = "solution", ifelse(crossword_matrix[index] == 1, "right", "down"))
+  
+  current_solution <- game_matrix[solution_indices] %>% 
+    str_c(collapse = "")
+  
+  if (!str_detect(solution_candidate, current_solution)) {
+    stop("Solution does not fit")
+  }
+  
+  solution_letters <- str_split(solution_candidate, "", simplify = TRUE) %>% 
+    as.vector()
+  
+  game_matrix[solution_indices] <- solution_letters
+  
+  return(game_matrix)
+  
+}
+
+
 
