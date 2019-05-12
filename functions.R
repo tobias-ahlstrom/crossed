@@ -495,10 +495,15 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
     stop(paste("Index", index, "is not a clue"))
   }
   
+  cat(index, "Find suggestion for index:", index, "\n")
+  
   # Get current solution and subset dictionary with what fits based on that
   current_solution <- get_solution(crossword_matrix, game_matrix, index)
   
+  cat(index, "Current text is:", current_solution, "\n")
+  
   if (is_finished_clue(crossword_matrix, game_matrix, index)) {
+    cat(index, "Is a finished clue, return current text\n\n")
     return(current_solution)
   }
   
@@ -509,8 +514,11 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
   
   dictionary_subset <- sample(dictionary_subset, min(max(sample_size, 10), length(dictionary_subset)))
   
+  cat(index, "Dictionary subset is:\n")
+  print(head(dictionary_subset, n = 10))
+  
   if (length(dictionary_subset) == 0) {
-    cat("No suggestions\n")
+    cat(index, "No available suggestions, return NULL\n\n")
     return(NULL)
   }
   
@@ -538,12 +546,14 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
     
   }
   
+  # Used to specify which connected clues to recheck
   if (!is.null(.omit_clue)) {
     # connected_clues_indices_unfinished <- connected_clues_indices_unfinished[connected_clues_indices_unfinished != .omit_clue]
     connected_clues_indices_unfinished <- NULL
   }
   
   # Which positions in the word does not need to be checked
+  # Currently does not work very well, rethink this
   
   # dictionary_subset_temp <- dictionary_subset %>% 
   #   str_split(pattern = "", simplify = TRUE)
@@ -556,46 +566,62 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
   dictionary_subset_possible <- c()
   nr_clues_to_satisfy <- length(connected_clues_indices_unfinished)
   
-  for (candidate_suggestion in dictionary_subset) {
+  # If there are no connected clues to satisfy, set possible clues to dictionary_subset and break loop
+  if (nr_clues_to_satisfy == 0) {
     
-    cat("Cur index:", index, "\n")
-    cat("Cur suggestion:", candidate_suggestion, "\n")
+    dictionary_subset_possible <- dictionary_subset
+    cat(index, "No connected clues to check\n")
+  } else {
     
-    if (nr_clues_to_satisfy == 0) {
-      cat("\n")
-      break()
-    }
-    
-    game_matrix_temp <- game_insert_solution(crossword_matrix, game_matrix, index, candidate_suggestion, force = TRUE)
-    
-    n_satisfied <- 0
-    
-    for (unfinished_clue in connected_clues_indices_unfinished) {
-      cat("Investigate clue:", unfinished_clue, "\n")
-      if (length(game_suggest_solution(crossword_matrix, game_matrix_temp, unfinished_clue, 1, .omit_clue = index)) > 0) {
-        cat("Satisfied clue:", unfinished_clue, "\n")
-        n_satisfied <- n_satisfied + 1
-      } else {
-        cat("Did not satisfy clue:", unfinished_clue, "\n")
+    for (candidate_suggestion in dictionary_subset) {
+      
+      cat(index, "Candidate suggestion:", candidate_suggestion, "\n")
+      
+      game_matrix_temp <- game_insert_solution(crossword_matrix, game_matrix, index, candidate_suggestion, force = FALSE)
+      
+      n_satisfied <- 0
+      
+      for (unfinished_clue in connected_clues_indices_unfinished) {
+        
+        cat(index, "Drill down on clue:", unfinished_clue, "\n\n")
+        
+        # Enough to check that one single word satifies connected unfinished clue
+        if (length(game_suggest_solution(crossword_matrix, game_matrix_temp, unfinished_clue, 1, .omit_clue = index)) > 0) {
+          
+          cat(index, "Can satisfy clue:", unfinished_clue, "\n")
+          n_satisfied <- n_satisfied + 1
+          
+        } else {
+          
+          # If one single unfinished clue can not be satisfied, just break loop
+          cat(index, "Can not satisfy clue:", unfinished_clue, "\n")
+          break()
+        }
+      }
+      
+      if (n_satisfied == nr_clues_to_satisfy) {
+        dictionary_subset_possible <- c(dictionary_subset_possible, candidate_suggestion)
+      }
+      
+      # Found enough possible words, break
+      if (length(dictionary_subset_possible) == sample_size) {
         break()
       }
     }
-    
-    cat("\n")
-    
-    if (n_satisfied == nr_clues_to_satisfy) {
-      dictionary_subset_possible <- c(dictionary_subset_possible, candidate_suggestion)
-    }
   }
-  
-  
   
   if (!is.null(sample_size)) {
-    suggestions <- sample(dictionary_subset, min(sample_size, length(dictionary_subset)))
+    suggestions <- sample(dictionary_subset_possible, min(sample_size, length(dictionary_subset_possible)))
   } else {
-    suggestions <- dictionary_subset
+    suggestions <- dictionary_subset_possible
   }
-
+  
+  # If no suggestions was found, try again
+  if (length(suggestions) == 0) {
+    suggestions <- game_suggest_solution(crossword_matrix, game_matrix, index, sample_size = sample_size)
+  }
+  
+  cat(index, "Return possible solutions:", paste0("[", suggestions, "]", collapse = ","), "for index,", index, "\n\n")
   return(suggestions)
 }
 

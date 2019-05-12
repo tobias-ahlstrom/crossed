@@ -7,7 +7,8 @@ source("functions.R")
 # dictionary %>% write_rds("dictionary.rds")
 
 # Let dictionary be a global variable for now
-dictionary <-  read_rds("dictionary.rds")
+dictionary <-  read_rds("dictionary.rds") %>% 
+  mutate(word = str_remove_all(word, "[[:punct:]]"))
 
 crossword_matrix <- create_crossword_matrix(12, 9, clues_factor = 5)
 
@@ -74,10 +75,25 @@ game_insert_solution(crossword_matrix, game_matrix, 1, "cia") %>%
   game_insert_solution(crossword_matrix, ., 40, "knackar") %>% 
   game_insert_solution(crossword_matrix, ., 17, "ektorp") %>% 
   is_finished_clue(crossword_matrix, ., c(17, 40, 2))
-  
+
+game_matrix_test <- game_matrix %>% 
+  game_insert_solution(crossword_matrix, ., 40, game_suggest_solution(crossword_matrix, ., 40, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 17, game_suggest_solution(crossword_matrix, ., 17, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 6,  game_suggest_solution(crossword_matrix, ., 6,  sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 28, game_suggest_solution(crossword_matrix, ., 28, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 50, game_suggest_solution(crossword_matrix, ., 50, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 20, game_suggest_solution(crossword_matrix, ., 20, sample_size = 5)[1]) %>% 
+  View("test")
 
 get_clue_indices(crossword_matrix, 13)
 get_clue_indices(crossword_matrix, 29)
 get_clue_indices(crossword_matrix, c(29, 41, 53, 65, 77, 89))
+
+get_solution_indices(crossword_matrix, 1) %>% 
+  get_clue_indices(crossword_matrix, .) %>% 
+  .[,3] %>% 
+  as.vector() %>% 
+  na.omit() %>% 
+  .[!is_finished_clue(crossword_matrix, game_matrix, .)]
 
 
