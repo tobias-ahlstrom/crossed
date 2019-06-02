@@ -8,7 +8,12 @@ source("functions.R")
 
 # Let dictionary be a global variable for now
 dictionary <-  read_rds("dictionary.rds") %>% 
-  mutate(word = str_remove_all(word, "[[:punct:]]"))
+  filter(!str_detect(word, "[[:punct:]]"))
+  # mutate(word = str_remove_all(word, "[[:punct:]]"))
+
+dictionary <- dictionary %>%
+  bind_rows(tibble(word = c(letters, "å", "ä", "ö"))) %>%
+  distinct()
 
 crossword_matrix <- create_crossword_matrix(12, 9, clues_factor = 5)
 
@@ -57,9 +62,16 @@ adjust_matrix(crossword_matrix, 1)
 adjust_matrix(crossword_matrix, 2)
 adjust_matrix(crossword_matrix, 3)
 
+get_clue_indices(crossword_matrix, 13)
+get_clue_indices(crossword_matrix, 29)
+get_clue_indices(crossword_matrix, c(29, 41, 53, 65, 77, 89))
+
+# Testing solution suggestion functions
+
+# TODO: Optimise the following scenario:
+# "namn" is a candidate suggestion but the "a" makes a connected word fail, then it is no reason to try any word that has "a" in the second position
 game_suggest_solution(crossword_matrix, game_matrix, 1, sample_size = 5)
 game_suggest_solution(crossword_matrix, game_matrix, 40, sample_size = 5)
-
 
 game_insert_solution(crossword_matrix, game_matrix, 1, "cia") %>% 
   game_insert_solution(crossword_matrix, ., 40, "knackar") %>% 
@@ -83,17 +95,17 @@ game_matrix_test <- game_matrix %>%
   game_insert_solution(crossword_matrix, ., 28, game_suggest_solution(crossword_matrix, ., 28, sample_size = 5)[1]) %>% 
   game_insert_solution(crossword_matrix, ., 50, game_suggest_solution(crossword_matrix, ., 50, sample_size = 5)[1]) %>% 
   game_insert_solution(crossword_matrix, ., 20, game_suggest_solution(crossword_matrix, ., 20, sample_size = 5)[1]) %>% 
-  View("test")
+  game_insert_solution(crossword_matrix, ., 55, game_suggest_solution(crossword_matrix, ., 55, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 76, game_suggest_solution(crossword_matrix, ., 76, sample_size = 5)[1])
 
-get_clue_indices(crossword_matrix, 13)
-get_clue_indices(crossword_matrix, 29)
-get_clue_indices(crossword_matrix, c(29, 41, 53, 65, 77, 89))
+game_matrix_test <- game_matrix_test %>% 
+  game_insert_solution(crossword_matrix, ., 68, game_suggest_solution(crossword_matrix, ., 68, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 101, game_suggest_solution(crossword_matrix, ., 101, sample_size = 5)[1])
 
-get_solution_indices(crossword_matrix, 1) %>% 
-  get_clue_indices(crossword_matrix, .) %>% 
-  .[,3] %>% 
-  as.vector() %>% 
-  na.omit() %>% 
-  .[!is_finished_clue(crossword_matrix, game_matrix, .)]
+game_matrix_test <- game_matrix_test %>% 
+  game_insert_solution(crossword_matrix, ., 91, game_suggest_solution(crossword_matrix, ., 91, sample_size = 5)[1]) %>% 
+  game_insert_solution(crossword_matrix, ., 72, game_suggest_solution(crossword_matrix, ., 72, sample_size = 5)[1])
+
+
 
 

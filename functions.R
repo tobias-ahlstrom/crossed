@@ -489,7 +489,7 @@ is_valid_index <- function(crossword_matrix, index, rule, force = NULL) {
 
 
 # Give an index as .omit_clue to not check validity with that clue
-game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_size = NULL, .omit_clue = NULL) {
+game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_size = NULL, .omit_clue = NULL, .omit_suggestions = NULL) {
   
   if (crossword_matrix[index] == 0) {
     stop(paste("Index", index, "is not a clue"))
@@ -502,15 +502,22 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
   
   cat(index, "Current text is:", current_solution, "\n")
   
+  dictionary_subset <- dictionary %>% 
+    filter(str_length(word) == str_length(current_solution),
+           str_detect(str_to_lower(word, locale = "sv"), current_solution),
+           !(word %in% .omit_suggestions)) %>% 
+    pull(word)
+  
   if (is_finished_clue(crossword_matrix, game_matrix, index)) {
+    
+    if (length(dictionary_subset) == 0) {
+      cat(index, "Is a finished clue, but not a real word, return NULL\n\n")
+      return(NULL)
+    }
+    
     cat(index, "Is a finished clue, return current text\n\n")
     return(current_solution)
   }
-  
-  dictionary_subset <- dictionary %>% 
-    filter(str_length(word) == str_length(current_solution),
-           str_detect(str_to_lower(word, locale = "sv"), current_solution)) %>% 
-    pull(word)
   
   dictionary_subset <- sample(dictionary_subset, min(max(sample_size, 10), length(dictionary_subset)))
   
@@ -522,13 +529,14 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
     return(NULL)
   }
   
-  # Consider that unfinished solutions connected to the suggestion will be able to complete
+  
+  # The rest of the code is to consider that unfinished solutions connected to the suggestion will be able to complete
   solution_indices <- get_solution_indices(crossword_matrix, index)
   
   connected_clues_indices <- get_clue_indices(crossword_matrix, solution_indices)
   
   # Only consider vertical clues if horizontal suggestion and vice versa
-  if (crossword_matrix[index] == 1) {
+  if (crossword_matrix[index] == 1 & !all(is.na(connected_clues_indices[,3]))) {
     connected_clues_indices_unfinished <- connected_clues_indices[,3] %>% 
       as.vector() %>% 
       na.omit() %>% 
@@ -536,7 +544,7 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
     
     # not_check_positions <- which(!(connected_clues_indices[,3] %in% connected_clues_indices_unfinished) & !is.na(connected_clues_indices[,3]))
     
-  } else {
+  } else if (crossword_matrix[index] == -1 & !all(is.na(connected_clues_indices[,2]))) {
     connected_clues_indices_unfinished <- connected_clues_indices[,2] %>% 
       as.vector() %>% 
       na.omit() %>% 
@@ -544,9 +552,12 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
     
     # not_check_positions <- which(!(connected_clues_indices[,2] %in% connected_clues_indices_unfinished) & !is.na(connected_clues_indices[,2]))
     
+  } else {
+    connected_clues_indices_unfinished <- NULL
   }
   
   # Used to specify which connected clues to recheck
+  # Currently drills down only one step
   if (!is.null(.omit_clue)) {
     # connected_clues_indices_unfinished <- connected_clues_indices_unfinished[connected_clues_indices_unfinished != .omit_clue]
     connected_clues_indices_unfinished <- NULL
@@ -566,7 +577,7 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
   dictionary_subset_possible <- c()
   nr_clues_to_satisfy <- length(connected_clues_indices_unfinished)
   
-  # If there are no connected clues to satisfy, set possible clues to dictionary_subset and break loop
+  # If there are no connected clues to satisfy, set possible clues to dictionary_subset
   if (nr_clues_to_satisfy == 0) {
     
     dictionary_subset_possible <- dictionary_subset
@@ -586,6 +597,7 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
         cat(index, "Drill down on clue:", unfinished_clue, "\n\n")
         
         # Enough to check that one single word satifies connected unfinished clue
+        # Pass it's own index to not check it in further steps
         if (length(game_suggest_solution(crossword_matrix, game_matrix_temp, unfinished_clue, 1, .omit_clue = index)) > 0) {
           
           cat(index, "Can satisfy clue:", unfinished_clue, "\n")
@@ -617,8 +629,9 @@ game_suggest_solution <- function(crossword_matrix, game_matrix, index, sample_s
   }
   
   # If no suggestions was found, try again
+  # Pass dictionary_subset as suggestions not to re check
   if (length(suggestions) == 0) {
-    suggestions <- game_suggest_solution(crossword_matrix, game_matrix, index, sample_size = sample_size)
+    suggestions <- game_suggest_solution(crossword_matrix, game_matrix, index, sample_size = sample_size, .omit_suggestions = dictionary_subset)
   }
   
   cat(index, "Return possible solutions:", paste0("[", suggestions, "]", collapse = ","), "for index,", index, "\n\n")
